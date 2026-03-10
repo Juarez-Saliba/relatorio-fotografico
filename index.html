@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sistema de Itens → Word</title>
+    <link rel="icon" type="image/png" href="./logo/logo_one.png" />
+    <link rel="shortcut icon" type="image/png" href="./logo/logo_one.png" />
+    <link rel="apple-touch-icon" href="./logo/logo_one.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo-wrap">
+          <img id="pwLogo" class="logo-img hidden" alt="PW Leilões" />
+        </div>
+        <div class="brand-text">
+          <strong>Relatório Fotográfico</strong>
+          <span>Gerador de Relatório Fotográfico no Word → Pw Leilões</span>
+        </div>
+      </div>
+      <div class="user-actions">
+        <div class="import-wrap">
+          <button id="importDocxBtn" class="btn ghost">Importar .docx</button>
+          <input id="importDocxInput" type="file" accept=".docx" style="display:none" />
+          <span id="importOffsetBadge" class="offset-badge hidden"></span>
+        </div>
+        <button id="aboutBtn" class="btn ghost">Ajuda</button>
+        <button id="resetBtn" class="btn ghost danger">Reiniciar</button>
+      </div>
+    </header>
+    <div id="progressPopup" class="popout hidden">
+      <div class="popout-content">
+        <img id="progressPopupLogo" class="popout-logo" alt="PW Leilões" />
+        <div class="popout-body">
+          <div id="progressPopupText" class="popout-title">Gerando documento…</div>
+          <div class="popout-bar"><span id="progressPopupFill" class="popout-bar-fill" style="width:0%"></span></div>
+        </div>
+      </div>
+    </div>
+    <div id="dlPopup" class="popout hidden">
+      <div class="popout-content">
+        <img id="dlPopupLogo" class="popout-logo" alt="PW Leilões" />
+        <div class="popout-body">
+          <div class="popout-title">Download concluído com sucesso</div>
+          <div class="popout-bar"><span class="popout-bar-fill"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <main id="app">
+      <section class="panel workspace">
+        <div class="controls">
+          <div class="control-row">
+            <div class="control-group">
+              <label for="orientacaoSelect">Orientação</label>
+              <select id="orientacaoSelect">
+                <option value="retrato" selected>retrato</option>
+                <option value="paisagem">paisagem</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label for="orgaoNome">Nome do órgão</label>
+              <input id="orgaoNome" class="orgao-input" type="text" placeholder="EX: Prefeitura de Belo Horizonte" />
+            </div>
+          </div>
+          <div class="control-row">
+            <div class="control-group">
+              <label>Margens (cm)</label>
+              <div class="margin-grid">
+                <label class="margin-item">
+                  <input id="mSup" type="number" step="0.01" value="1.27" aria-label="Superior" />
+                  <small>Superior</small>
+                </label>
+                <label class="margin-item">
+                  <input id="mInf" type="number" step="0.01" value="1.27" aria-label="Inferior" />
+                  <small>Inferior</small>
+                </label>
+                <label class="margin-item">
+                  <input id="mEsq" type="number" step="0.01" value="1.27" aria-label="Esquerda" />
+                  <small>Esquerda</small>
+                </label>
+                <label class="margin-item">
+                  <input id="mDir" type="number" step="0.01" value="1.27" aria-label="Direita" />
+                  <small>Direita</small>
+                </label>
+              </div>
+              <div class="margin-name">
+                <label for="nomeArquivo">Nome do arquivo</label>
+                <input id="nomeArquivo" type="text" value="itens_imagens.docx" />
+              </div>
+            </div>
+          </div>
+          <div id="lockedHint" class="locked-hint hidden">
+            Orientação, órgão e margens herdados do arquivo importado — apenas o nome do arquivo pode ser alterado.
+          </div>
+          <div class="control-row">
+            <button id="addItemBtn" class="btn">Adicionar Item</button>
+            <button id="generateBtn" class="btn primary" disabled>Gerar .docx</button>
+          </div>
+          <div id="generationStatus" class="status hidden">
+            <img src="./logo/logo_two.png" class="status-logo" alt="PW" />
+            <div>
+              <div id="generationStatusText"></div>
+              <div class="progress-track"><div id="downloadProgressFill" class="progress-fill"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="itemsContainer" class="items-container"></div>
+      </section>
+    </main>
+
+    <div id="confirmModal" class="modal hidden">
+      <div class="confirm-card">
+        <div class="confirm-header">
+          <img id="confirmModalLogo" class="confirm-logo" alt="PW Leilões" />
+        </div>
+        <p id="confirmModalMsg" class="confirm-msg"></p>
+        <div class="confirm-actions">
+          <button id="confirmModalCancel" class="btn ghost">Cancelar</button>
+          <button id="confirmModalOk" class="btn primary">Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="aboutModal" class="modal hidden">
+      <div class="modal-card">
+        <h3>Como funciona</h3>
+        <p>• 1 Item por página. Até 6 imagens por Item em grade 2×3.<br />
+           • Respeita largura/altura, borda e cor. Miniaturas com drag-and-drop.<br />
+           • Se exceder 6, usa a regra de Excedente.</p>
+        <div class="modal-actions">
+          <button id="closeAbout" class="btn">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./lib/docx.umd.js"></script>
+    <script src="./app.js"></script>
+  </body>
+  </html>
