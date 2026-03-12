@@ -1470,6 +1470,22 @@ async function ensureJSZip() {
   return false;
 }
 
+async function parseDocxOrgaoNome(buf) {
+  try {
+    const zip = await window.JSZip.loadAsync(buf);
+    const docXmlFile = zip.file('word/document.xml');
+    if (!docXmlFile) return '';
+    const xml = await docXmlFile.async('string');
+    const text = xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const laudoIdx = text.search(/LAUDO\s+FOTOGR[AÁ]FICO/i);
+    if (laudoIdx === -1) return '';
+    const afterLaudo = text.slice(laudoIdx).replace(/LAUDO\s+FOTOGR[AÁ]FICO\s*/i, '');
+    const itemIdx = afterLaudo.search(/\bItem\s+\d{1,4}\b/i);
+    if (itemIdx === -1) return '';
+    return afterLaudo.slice(0, itemIdx).trim();
+  } catch { return ''; }
+}
+
 async function parseDocxLastItem(buf) {
   const ok = await ensureJSZip();
   if (!ok) throw new Error('Não foi possível carregar JSZip');
@@ -1486,7 +1502,7 @@ async function parseDocxLastItem(buf) {
 }
 
 function setFieldsLocked(locked) {
-  const ids = ['orientacaoSelect', 'orgaoNome', 'mSup', 'mInf', 'mEsq', 'mDir'];
+  const ids = ['orientacaoSelect', 'mSup', 'mInf', 'mEsq', 'mDir'];
   ids.forEach(id => {
     const el = $(`#${id}`);
     if (!el) return;
@@ -1554,7 +1570,10 @@ async function onImportDocx(file) {
     const msg = `O arquivo contém ${lastItem} item(s).\n\nEles serão carregados na lista e você poderá reordená-los junto com os novos.\n\nConfirmar?`;
     if (!await showConfirm(msg)) return;
     showStatus('Extraindo itens do arquivo…');
-    const importedItems = await parseDocxAllSections(buf);
+    const [importedItems, orgaoNome] = await Promise.all([
+      parseDocxAllSections(buf),
+      parseDocxOrgaoNome(buf),
+    ]);
     hideStatus();
     if (importedItems.length === 0) {
       alert('Não foi possível extrair os itens do arquivo.');
@@ -1564,8 +1583,11 @@ async function onImportDocx(file) {
     state.items = [...importedItems];
     state.params.ITEM_OFFSET = lastItem;
     state.params.PARAMS_LOCKED = true;
+    if (orgaoNome) state.params.ORGAO_NOME = orgaoNome;
+    state.params.NOME_ARQUIVO = file.name.replace(/\.docx$/i, '') + '.docx';
     updateOffsetUI();
     setFieldsLocked(true);
+    syncParamsToUI();
     setGenerateEnabled(true);
     scheduleSave();
     render();
