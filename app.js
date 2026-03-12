@@ -527,6 +527,7 @@ function render() {
     rmBtn.textContent = 'Remover';
     rmBtn.addEventListener('click', () => {
       state.items = state.items.filter(x => x.id !== it.id);
+      renumberItems();
       if (state.items.length === 0) setGenerateEnabled(false);
       render();
     });
