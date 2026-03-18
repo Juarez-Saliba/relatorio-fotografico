@@ -63,14 +63,32 @@ function _dbPurge(db, validIds) {
   });
 }
 
-let _saveTimer = null;
-function scheduleSave() {
-  if (_restoring) return;
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(saveState, 600);
+let _imgSaveTimer = null;
+
+function _buildPayload() {
+  return {
+    ts: Date.now(),
+    params: state.params,
+    items: state.items.map(it => ({
+      id: it.id, nome: it.nome, config: it.config, imported: it.imported || false,
+      imagens: it.imagens.map(img => ({
+        id: img.id,
+        name: img.file?.name || 'image.png',
+        type: img.file?.type || 'image/png',
+        w: img.w, h: img.h,
+      })),
+    })),
+  };
 }
 
-async function saveState() {
+function saveMetadata() {
+  if (_restoring) return;
+  try {
+    localStorage.setItem(_LS_KEY, JSON.stringify(_buildPayload()));
+  } catch (e) { console.warn('saveMetadata:', e); }
+}
+
+async function saveImages() {
   try {
     const db = await _openDB();
     const validIds = new Set();
@@ -84,21 +102,19 @@ async function saveState() {
       }
     }
     await _dbPurge(db, validIds);
-    const payload = {
-      ts: Date.now(),
-      params: state.params,
-      items: state.items.map(it => ({
-        id: it.id, nome: it.nome, config: it.config, imported: it.imported || false,
-        imagens: it.imagens.map(img => ({
-          id: img.id,
-          name: img.file?.name || 'image.png',
-          type: img.file?.type || 'image/png',
-          w: img.w, h: img.h,
-        })),
-      })),
-    };
-    localStorage.setItem(_LS_KEY, JSON.stringify(payload));
-  } catch (e) { console.warn('saveState:', e); }
+  } catch (e) { console.warn('saveImages:', e); }
+}
+
+function scheduleSave() {
+  if (_restoring) return;
+  saveMetadata();
+  clearTimeout(_imgSaveTimer);
+  _imgSaveTimer = setTimeout(saveImages, 300);
+}
+
+async function saveState() {
+  saveMetadata();
+  await saveImages();
 }
 
 async function restoreState() {
@@ -1643,6 +1659,22 @@ async function boot() {
     if (state.items.length > 0) setGenerateEnabled(true);
   }
   render();
+
+  // Salva imediatamente ao fechar/recarregar a aba
+  window.addEventListener('beforeunload', () => {
+    clearTimeout(_imgSaveTimer);
+    saveMetadata();
+    saveImages();
+  });
+
+  // Salva quando a aba perde o foco ou é minimizada
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      clearTimeout(_imgSaveTimer);
+      saveMetadata();
+      saveImages();
+    }
+  });
 }
 
 boot();
