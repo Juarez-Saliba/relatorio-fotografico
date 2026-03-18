@@ -7,7 +7,7 @@ const state = {
     ORIENTACAO: 'retrato',
     MARGENS_CM: { sup: 1.27, inf: 1.27, esq: 1.27, dir: 1.27 },
     ORGAO_NOME: '',
-    NOME_ARQUIVO: 'itens_imagens.docx',
+    NOME_ARQUIVO: 'Relatório Fotográfico.docx',
     ITEM_OFFSET: 0,
     PARAMS_LOCKED: false,
   },
@@ -157,7 +157,7 @@ function syncParamsToUI() {
   const p = state.params;
   const orEl = $('#orientacaoSelect'); if (orEl) orEl.value = p.ORIENTACAO || 'retrato';
   const ogEl = $('#orgaoNome');        if (ogEl) ogEl.value = p.ORGAO_NOME  || '';
-  const nfEl = $('#nomeArquivo');      if (nfEl) nfEl.value = p.NOME_ARQUIVO || 'itens_imagens.docx';
+  const nfEl = $('#nomeArquivo');      if (nfEl) nfEl.value = p.NOME_ARQUIVO || 'Relatório Fotográfico.docx';
   const ms = p.MARGENS_CM || {};
   const mS = $('#mSup'); if (mS) mS.value = ms.sup ?? 1.27;
   const mI = $('#mInf'); if (mI) mI.value = ms.inf ?? 1.27;
@@ -725,7 +725,7 @@ function bindBasics() {
   $('#mInf').addEventListener('change', (e) => { state.params.MARGENS_CM.inf = parseFloat(e.target.value || '0') || 0; scheduleSave(); });
   $('#mEsq').addEventListener('change', (e) => { state.params.MARGENS_CM.esq = parseFloat(e.target.value || '0') || 0; scheduleSave(); });
   $('#mDir').addEventListener('change', (e) => { state.params.MARGENS_CM.dir = parseFloat(e.target.value || '0') || 0; scheduleSave(); });
-  $('#nomeArquivo').addEventListener('change', (e) => { state.params.NOME_ARQUIVO = e.target.value || 'itens_imagens.docx'; scheduleSave(); });
+  $('#nomeArquivo').addEventListener('change', (e) => { state.params.NOME_ARQUIVO = e.target.value || 'Relatório Fotográfico.docx'; scheduleSave(); });
   $('#generateBtn').addEventListener('click', onGenerate);
   const el = $('#pwLogo');
   if (el) {
@@ -1481,7 +1481,7 @@ async function onGenerate() {
     }
     const docxDoc = new docx.Document({ sections });
     const finalBlob = await docx.Packer.toBlob(docxDoc);
-    const name = (state.params.NOME_ARQUIVO || 'itens_imagens.docx').replace(/\.docx$/i, '') + '.docx';
+    const name = (state.params.NOME_ARQUIVO || 'Relatório Fotográfico.docx').replace(/\.docx$/i, '') + '.docx';
     const a = window.document.createElement('a');
     a.href = URL.createObjectURL(finalBlob);
     a.download = name;
@@ -1599,7 +1599,7 @@ async function resetApp() {
     ORIENTACAO: 'retrato',
     MARGENS_CM: { sup: 1.27, inf: 1.27, esq: 1.27, dir: 1.27 },
     ORGAO_NOME: '',
-    NOME_ARQUIVO: 'itens_imagens.docx',
+    NOME_ARQUIVO: 'Relatório Fotográfico.docx',
     ITEM_OFFSET: 0,
     PARAMS_LOCKED: false,
   };
