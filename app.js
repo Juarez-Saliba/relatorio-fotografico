@@ -751,8 +751,9 @@ function bindBasics() {
 }
 
 async function fileToImageBitmap(file) {
-  const buf = await file.arrayBuffer();
-  const blob = new Blob([buf], { type: file.type || 'image/png' });
+  const buf = file instanceof ArrayBuffer ? file : await file.arrayBuffer();
+  const type = file instanceof ArrayBuffer ? 'image/jpeg' : (file.type || 'image/png');
+  const blob = new Blob([buf], { type });
   try { return await createImageBitmap(blob); } catch {
     return await new Promise((res, rej) => {
       const img = new Image();
@@ -1041,9 +1042,10 @@ async function computeAutoLayout(it, params) {
 
   const metas = [];
   for (const img of it.imagens) {
-    if (!img.file) continue;
-    const bitmap = await fileToImageBitmap(img.file);
-    metas.push({ id: img.id, file: img.file, w: bitmap.width, h: bitmap.height, aspect: bitmap.width/bitmap.height });
+    const src = img.data || img.file;
+    if (!src) continue;
+    const bitmap = await fileToImageBitmap(src);
+    metas.push({ id: img.id, file: img.file, data: img.data, w: bitmap.width, h: bitmap.height, aspect: bitmap.width/bitmap.height });
   }
   const totalRows = Math.max(1, Math.ceil(metas.length / 2));
   const maxH = Math.max(0.1, usableH - headerAllowance);
@@ -1058,11 +1060,11 @@ async function computeAutoLayout(it, params) {
       if (isPortrait) {
         height = Math.min(MAX_VERT_H_CM, Math.max(MIN_VERT_H_CM, height));
         const width = Math.max(0.1, Math.min(contentW, height * m.aspect));
-        return { id: m.id, file: m.file, widthCm: width, heightCm: height, aspect: m.aspect };
+        return { id: m.id, file: m.file, data: m.data, widthCm: width, heightCm: height, aspect: m.aspect };
       }
       let width = Math.max(MIN_HORIZ_W_CM, Math.min(Math.max(0.1, Math.min(contentW, MAX_HORIZ_W_CM)), height * m.aspect));
       height = width / Math.max(0.0001, m.aspect);
-      return { id: m.id, file: m.file, widthCm: width, heightCm: height, aspect: m.aspect };
+      return { id: m.id, file: m.file, data: m.data, widthCm: width, heightCm: height, aspect: m.aspect };
     });
     layoutRows.push(row);
   }
@@ -1395,7 +1397,7 @@ async function onGenerate() {
         const flat = [];
         for (const row of layoutRows) {
           for (const p of row) {
-            flat.push({ id: p.id, file: p.file, widthCm: p.widthCm, heightCm: p.heightCm });
+            flat.push({ id: p.id, file: p.file, data: p.data, widthCm: p.widthCm, heightCm: p.heightCm });
           }
         }
         useImages = flat;
@@ -1405,8 +1407,9 @@ async function onGenerate() {
       const processed = [];
       for (let k = 0; k < useImages.length; k++) {
         const imgRef = useImages[k];
-        if (!imgRef.file) {
-          console.warn(`Imagem sem arquivo no ${it.nome} (posição ${k + 1}), pulando.`);
+        const imgSrc = imgRef.data || imgRef.file;
+        if (!imgSrc) {
+          console.warn(`Imagem sem dados no ${it.nome} (posição ${k + 1}), pulando.`);
           continue;
         }
         const cfg = { ...it.config };
@@ -1416,7 +1419,7 @@ async function onGenerate() {
           cfg.manterProporcao = true;
           cfg.modoAjuste = 'contain';
         }
-        const info = await processImage(imgRef.file, cfg);
+        const info = await processImage(imgSrc, cfg);
         processed.push(info);
         const base = (i / state.items.length) * 98;
         const inc = ((k + 1) / Math.max(1, useImages.length)) * (98 / state.items.length);
