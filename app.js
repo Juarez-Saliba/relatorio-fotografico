@@ -95,9 +95,16 @@ async function saveImages() {
     for (const item of state.items) {
       for (const img of item.imagens) {
         validIds.add(img.id);
-        if (img.file) {
-          const data = await img.file.arrayBuffer();
-          await _dbPut(db, { id: img.id, data, name: img.file.name, type: img.file.type });
+        try {
+          // Usa dados já lidos em memória; só lê do disco como fallback
+          const data = img.data || (img.file ? await img.file.arrayBuffer() : null);
+          if (data) {
+            const name = img.file?.name || 'image.png';
+            const type = img.file?.type || 'image/png';
+            await _dbPut(db, { id: img.id, data, name, type });
+          }
+        } catch (imgErr) {
+          console.warn('saveImages: falha em imagem', img.id, imgErr);
         }
       }
     }
@@ -137,7 +144,7 @@ async function restoreState() {
         const blob = new Blob([rec.data], { type: rec.type || imgMeta.type || 'image/png' });
         const file = new File([blob], rec.name || imgMeta.name || 'image.png', { type: blob.type });
         const url  = URL.createObjectURL(blob);
-        imagens.push({ id: imgMeta.id, file, url, w: imgMeta.w, h: imgMeta.h });
+        imagens.push({ id: imgMeta.id, file, data: rec.data, url, w: imgMeta.w, h: imgMeta.h });
       }
       items.push({ id: si.id, nome: si.nome, config: si.config, imported: si.imported || false, imagens });
     }
@@ -408,6 +415,17 @@ function render() {
       th.dataset.id = img.id;
       const im = document.createElement('img');
       im.src = img.url;
+      im.onerror = () => {
+        // Recria URL a partir dos dados em memória se a URL original falhou
+        if (img.data) {
+          const blob = new Blob([img.data], { type: img.file?.type || 'image/jpeg' });
+          img.url = URL.createObjectURL(blob);
+          im.src = img.url;
+        } else if (img.file) {
+          img.url = URL.createObjectURL(img.file);
+          im.src = img.url;
+        }
+      };
       th.appendChild(im);
       const rm = document.createElement('button');
       rm.className = 'remove btn mini';
@@ -627,13 +645,18 @@ function reorderImagesByMajority(item) {
 
 async function addFilesToItem(item, files) {
   for (const f of files) {
-    const url = URL.createObjectURL(f);
-    let w = null, h = null;
+    // Lê os bytes imediatamente — não depende mais do arquivo no disco
+    let data, url, w = null, h = null;
     try {
+      data = await f.arrayBuffer();
+      const blob = new Blob([data], { type: f.type || 'image/jpeg' });
+      url = URL.createObjectURL(blob);
       const bmp = await fileToImageBitmap(f);
       w = bmp.width; h = bmp.height;
-    } catch {}
-    item.imagens.push({ id: crypto.randomUUID(), file: f, url, w, h });
+    } catch {
+      if (!url && f) url = URL.createObjectURL(f);
+    }
+    item.imagens.push({ id: crypto.randomUUID(), file: f, data, url, w, h });
   }
   // Completa dimensões ausentes das imagens antigas, quando possível
   for (const img of item.imagens) {
@@ -1660,11 +1683,11 @@ async function boot() {
   }
   render();
 
-  // Salva imediatamente ao fechar/recarregar a aba
+  // Salva metadados ao fechar/recarregar (sync); imagens já foram salvas durante uso
   window.addEventListener('beforeunload', () => {
     clearTimeout(_imgSaveTimer);
     saveMetadata();
-    saveImages();
+    // Não chama saveImages() aqui: IndexedDB pode já estar encerrando
   });
 
   // Salva quando a aba perde o foco ou é minimizada
