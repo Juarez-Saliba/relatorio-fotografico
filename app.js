@@ -20,7 +20,7 @@ const _DB_NAME = 'relatorio_fotografico_db';
 const _DB_VER  = 1;
 const _STORE   = 'imagens';
 const _LS_KEY  = 'relatorio_state_v1';
-const _TTL_MS  = 24 * 60 * 60 * 1000;
+const _TTL_MS  = 7 * 24 * 60 * 60 * 1000;
 let   _restoring = false;
 
 function _openDB() {
@@ -385,7 +385,7 @@ function render() {
     ori.forEach(inp => { inp.disabled = !!it.config.autoSize || !it.config.perOriEnabled; });
     const thumbs = document.createElement('div');
     thumbs.className = 'thumbs';
-    it.imagens.forEach((img, i) => {
+    it.imagens.forEach((img) => {
       const th = document.createElement('div');
       th.className = 'thumb';
       th.draggable = true;
@@ -1339,112 +1339,116 @@ async function onGenerate() {
   showStatus('Gerando documento…');
   updateProgress(0);
   await new Promise(r => setTimeout(r, 0));
-  const cellSpaceTwips = 0; // espaçamento externo entre células desativado
-  const margens = state.params.MARGENS_CM || { sup: 1.27, inf: 1.27, esq: 1.27, dir: 1.27 };
-  const orgInput = $('#orgaoNome');
-  if (orgInput) state.params.ORGAO_NOME = (orgInput.value || '').trim();
-  const sections = [];
-  const summary = [];
-  let hadError = false;
-  for (let i = 0; i < state.items.length; i++) {
-    const it = state.items[i];
-    let useImages = it.imagens.slice();
-    let layoutRows = undefined;
-    if (it.config.autoSize) {
-      const res = await computeAutoLayout(it, state.params);
-      layoutRows = res.layoutRows;
-      const flat = [];
-      for (const row of layoutRows) {
-        for (const p of row) {
-          flat.push({ id: p.id, file: p.file, widthCm: p.widthCm, heightCm: p.heightCm });
-        }
-      }
-      useImages = flat;
-    } else {
-      if (useImages.length > 6) useImages.length = 6;
-    }
-    const processed = [];
-    for (let k = 0; k < useImages.length; k++) {
-      const imgRef = useImages[k];
-      const cfg = { ...it.config };
+  try {
+    const cellSpaceTwips = 0;
+    const margens = state.params.MARGENS_CM || { sup: 1.27, inf: 1.27, esq: 1.27, dir: 1.27 };
+    const orgInput = $('#orgaoNome');
+    if (orgInput) state.params.ORGAO_NOME = (orgInput.value || '').trim();
+    const sections = [];
+    for (let i = 0; i < state.items.length; i++) {
+      const it = state.items[i];
+      let useImages = it.imagens.slice();
+      let layoutRows = undefined;
       if (it.config.autoSize) {
-        cfg.targetWidthPx = cmToPx(imgRef.widthCm);
-        cfg.targetHeightPx = cmToPx(imgRef.heightCm);
-        cfg.manterProporcao = true;
-        cfg.modoAjuste = 'contain';
+        const res = await computeAutoLayout(it, state.params);
+        layoutRows = res.layoutRows;
+        const flat = [];
+        for (const row of layoutRows) {
+          for (const p of row) {
+            flat.push({ id: p.id, file: p.file, widthCm: p.widthCm, heightCm: p.heightCm });
+          }
+        }
+        useImages = flat;
+      } else {
+        if (useImages.length > 6) useImages.length = 6;
       }
-      const info = await processImage(imgRef.file, cfg);
-      processed.push(info);
-      const base = (i / state.items.length) * 98;
-      const inc = ((k + 1) / Math.max(1, useImages.length)) * (98 / state.items.length);
-      updateProgress(Math.min(98, Math.floor(base + inc)));
-    }
-    const tables = (layoutRows && it.config.autoSize)
-      ? [buildTableForItem(docx, processed, cellSpaceTwips, layoutRows.length)]
-      : [buildTableForItem(docx, processed, cellSpaceTwips)];
-    const isFirstSection = (i === 0);
-    const laudoTitlePara = isFirstSection ? new docx.Paragraph({
-      alignment: docx.AlignmentType.CENTER,
-      spacing: { before: 0, after: 40 },
-      children: [
-        new docx.TextRun({ text: 'LAUDO FOTOGRÁFICO', font: 'Lucida Bright', size: 28 }),
-      ],
-    }) : null;
-    const spacerBetweenTitleAndOrgao = isFirstSection ? new docx.Paragraph({}) : null;
-    const orgaoPara = isFirstSection ? new docx.Paragraph({
-      alignment: docx.AlignmentType.CENTER,
-      spacing: { before: 0, after: 80 },
-      children: [
-        new docx.TextRun({ text: state.params.ORGAO_NOME || '', font: 'Lucida Bright', size: 24 }),
-      ],
-    }) : null;
-    const spacerBetweenOrgaoAndTitle = isFirstSection ? new docx.Paragraph({}) : null;
-    const spacerBetweenOrgaoAndTitle2 = isFirstSection ? new docx.Paragraph({}) : null;
-    const titlePara = new docx.Paragraph({
-      alignment: docx.AlignmentType.CENTER,
-      spacing: { before: 0, after: 0 },
-      children: [
-        new docx.TextRun({
-          text: it.nome,
-          font: 'Lucida Bright',
-          size: 24,
-        }),
-      ],
-    });
-    const spacerAfterTitle1 = new docx.Paragraph({});
-    const spacerAfterTitle2 = new docx.Paragraph({});
-    sections.push({
-      properties: {
-        page: {
-          margin: {
-            top: cmToTwips(margens.sup || 1.27),
-            bottom: cmToTwips(margens.inf || 1.27),
-            left: cmToTwips(margens.esq || 1.27),
-            right: cmToTwips(margens.dir || 1.27),
-            footer: cmToTwips(0),
-          },
-          size: {
-            orientation: (state.params.ORIENTACAO === 'paisagem') ? docx.PageOrientation.LANDSCAPE : docx.PageOrientation.PORTRAIT,
+      const processed = [];
+      for (let k = 0; k < useImages.length; k++) {
+        const imgRef = useImages[k];
+        if (!imgRef.file) {
+          console.warn(`Imagem sem arquivo no ${it.nome} (posição ${k + 1}), pulando.`);
+          continue;
+        }
+        const cfg = { ...it.config };
+        if (it.config.autoSize) {
+          cfg.targetWidthPx = cmToPx(imgRef.widthCm);
+          cfg.targetHeightPx = cmToPx(imgRef.heightCm);
+          cfg.manterProporcao = true;
+          cfg.modoAjuste = 'contain';
+        }
+        const info = await processImage(imgRef.file, cfg);
+        processed.push(info);
+        const base = (i / state.items.length) * 98;
+        const inc = ((k + 1) / Math.max(1, useImages.length)) * (98 / state.items.length);
+        updateProgress(Math.min(98, Math.floor(base + inc)));
+      }
+      const tables = (layoutRows && it.config.autoSize)
+        ? [buildTableForItem(docx, processed, cellSpaceTwips, layoutRows.length)]
+        : [buildTableForItem(docx, processed, cellSpaceTwips)];
+      const isFirstSection = (i === 0);
+      const laudoTitlePara = isFirstSection ? new docx.Paragraph({
+        alignment: docx.AlignmentType.CENTER,
+        spacing: { before: 0, after: 40 },
+        children: [
+          new docx.TextRun({ text: 'LAUDO FOTOGRÁFICO', font: 'Lucida Bright', size: 28 }),
+        ],
+      }) : null;
+      const spacerBetweenTitleAndOrgao = isFirstSection ? new docx.Paragraph({}) : null;
+      const orgaoPara = isFirstSection ? new docx.Paragraph({
+        alignment: docx.AlignmentType.CENTER,
+        spacing: { before: 0, after: 80 },
+        children: [
+          new docx.TextRun({ text: state.params.ORGAO_NOME || '', font: 'Lucida Bright', size: 24 }),
+        ],
+      }) : null;
+      const spacerBetweenOrgaoAndTitle = isFirstSection ? new docx.Paragraph({}) : null;
+      const spacerBetweenOrgaoAndTitle2 = isFirstSection ? new docx.Paragraph({}) : null;
+      const titlePara = new docx.Paragraph({
+        alignment: docx.AlignmentType.CENTER,
+        spacing: { before: 0, after: 0 },
+        children: [
+          new docx.TextRun({ text: it.nome, font: 'Lucida Bright', size: 24 }),
+        ],
+      });
+      const spacerAfterTitle1 = new docx.Paragraph({});
+      const spacerAfterTitle2 = new docx.Paragraph({});
+      sections.push({
+        properties: {
+          page: {
+            margin: {
+              top: cmToTwips(margens.sup || 1.27),
+              bottom: cmToTwips(margens.inf || 1.27),
+              left: cmToTwips(margens.esq || 1.27),
+              right: cmToTwips(margens.dir || 1.27),
+              footer: cmToTwips(0),
+            },
+            size: {
+              orientation: (state.params.ORIENTACAO === 'paisagem') ? docx.PageOrientation.LANDSCAPE : docx.PageOrientation.PORTRAIT,
+            },
           },
         },
-      },
-      children: isFirstSection
-        ? [ laudoTitlePara, spacerBetweenTitleAndOrgao, orgaoPara, spacerBetweenOrgaoAndTitle, spacerBetweenOrgaoAndTitle2, titlePara, spacerAfterTitle1, spacerAfterTitle2, ...tables ].filter(Boolean)
-        : [ titlePara, spacerAfterTitle1, spacerAfterTitle2, ...tables ].filter(Boolean),
-    });
-    summary.push({ nome: it.nome, imagens: processed.length });
+        children: isFirstSection
+          ? [ laudoTitlePara, spacerBetweenTitleAndOrgao, orgaoPara, spacerBetweenOrgaoAndTitle, spacerBetweenOrgaoAndTitle2, titlePara, spacerAfterTitle1, spacerAfterTitle2, ...tables ].filter(Boolean)
+          : [ titlePara, spacerAfterTitle1, spacerAfterTitle2, ...tables ].filter(Boolean),
+      });
+    }
+    const docxDoc = new docx.Document({ sections });
+    const finalBlob = await docx.Packer.toBlob(docxDoc);
+    const name = (state.params.NOME_ARQUIVO || 'itens_imagens.docx').replace(/\.docx$/i, '') + '.docx';
+    const a = window.document.createElement('a');
+    a.href = URL.createObjectURL(finalBlob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+    updateProgress(100);
+    hideStatus();
+    setTimeout(() => showDownloadToast(), 600);
+  } catch (e) {
+    console.error('Erro ao gerar documento:', e);
+    updateProgress(0);
+    hideStatus();
+    alert('Erro ao gerar o documento: ' + e.message + '\n\nVerifique se todas as imagens foram carregadas corretamente.');
   }
-  const docxDoc = new docx.Document({ sections });
-  const finalBlob = await docx.Packer.toBlob(docxDoc);
-  const name = (state.params.NOME_ARQUIVO || 'itens_imagens.docx').replace(/\.docx$/i, '') + '.docx';
-  const a = window.document.createElement('a');
-  a.href = URL.createObjectURL(finalBlob);
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-  updateProgress(100);
-  hideStatus();
-  setTimeout(() => showDownloadToast(), 600);
 }
 
 // ─── Importação de .docx existente ───────────────────────────────────────────
