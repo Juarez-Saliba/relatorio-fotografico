@@ -1002,6 +1002,7 @@ async function computeAutoLayout(it, params) {
 
   const metas = [];
   for (const img of it.imagens) {
+    if (!img.file) continue;
     const bitmap = await fileToImageBitmap(img.file);
     metas.push({ id: img.id, file: img.file, w: bitmap.width, h: bitmap.height, aspect: bitmap.width/bitmap.height });
   }
@@ -1382,10 +1383,14 @@ async function onGenerate() {
         const inc = ((k + 1) / Math.max(1, useImages.length)) * (98 / state.items.length);
         updateProgress(Math.min(98, Math.floor(base + inc)));
       }
+      if (processed.length === 0) {
+        console.warn(`${it.nome}: nenhuma imagem válida, item ignorado na geração.`);
+        continue;
+      }
       const tables = (layoutRows && it.config.autoSize)
         ? [buildTableForItem(docx, processed, cellSpaceTwips, layoutRows.length)]
         : [buildTableForItem(docx, processed, cellSpaceTwips)];
-      const isFirstSection = (i === 0);
+      const isFirstSection = (sections.length === 0);
       const laudoTitlePara = isFirstSection ? new docx.Paragraph({
         alignment: docx.AlignmentType.CENTER,
         spacing: { before: 0, after: 40 },
